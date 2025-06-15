@@ -151,11 +151,11 @@ async def handle_story_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("🪄 Generating your story... (Please be patient)")
 
         profile = user_data.get(user_id)
-if not profile:
-    await update.message.reply_text("❗ Please create your character first using /start.")
-    return
+        if not profile:
+            await update.message.reply_text("❗ Please create your character first using /start.")
+            return
 
-characters = profile.get("characters", [])
+        characters = profile.get("characters", [])
         user_name = profile.get("name", "You")
         user_gender = profile.get("gender", "unknown")
         nsfw = profile.get("nsfw", False)
@@ -179,6 +179,9 @@ Now begin the chat directly."""
 
         try:
             reply = await get_openrouter_reply(prompt)
+            if not reply:
+                raise Exception("OpenRouter returned empty reply")
+
             user_data[user_id]["generated_story"] = reply  # Save full story
             memory.setdefault(user_id, []).append(reply)
 
