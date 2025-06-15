@@ -329,21 +329,21 @@ Recent memory:"""
     prompt += f"\n\nUser: \"{user_msg}\"\nReply from the character in the proper format."
 
     try:
-    reply = await get_openrouter_reply(prompt)
-    if not reply:
-        raise Exception("OpenRouter returned empty reply")
+        reply = await get_openrouter_reply(prompt)
+        if not reply:
+            raise Exception("OpenRouter returned empty reply")
 
-    memory[user_id].append(f'User: {user_msg}')
-    memory[user_id].append(reply)
-    if len(memory[user_id]) > 20:
-        memory[user_id] = memory[user_id][-10:]
+        memory[user_id].append(f'User: {user_msg}')
+        memory[user_id].append(reply)
+        if len(memory[user_id]) > 20:
+            memory[user_id] = memory[user_id][-10:]
 
-    save_memory()
-    await update.message.reply_text(reply)
+        save_memory()
+        await update.message.reply_text(reply)
 
-except Exception as e:
-    print("❌ AI error:", e)
-    await update.message.reply_text("⚠️ Failed to generate a reply. Please try again later.")
+    except Exception as e:
+        print("❌ AI error:", e)
+        await update.message.reply_text("⚠️ Failed to generate a reply. Please try again later.")
 
 
 async def handle_user_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
