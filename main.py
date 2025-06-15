@@ -1,13 +1,8 @@
-import os
 import asyncio
 import httpx
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-print("API key loaded:", OPENROUTER_API_KEY is not None)
-
-if not OPENROUTER_API_KEY:
-    print("❌ OPENROUTER_API_KEY not set.")
-    exit(1)
+# Replace with your actual key (keep it secret!)
+OPENROUTER_API_KEY = "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"
 
 async def main():
     url = "https://openrouter.ai/api/v1/chat/completions"
