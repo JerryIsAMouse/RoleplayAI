@@ -249,7 +249,7 @@ User's custom story:
 
 Start the chat now. Use simple, human language."""
 
-        try:
+    try:
         reply = await get_openrouter_reply(prompt)
         if not reply:
             raise Exception("Empty reply from OpenRouter")
