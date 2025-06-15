@@ -2,37 +2,43 @@ import os
 import asyncio
 import httpx
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")  # Get from env
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 if not OPENROUTER_API_KEY:
-    print("❌ OPENROUTER_API_KEY not found in environment variables.")
-    exit()
+    print("❌ OPENROUTER_API_KEY not set in env variables.")
+    exit(1)
 
-async def test_openrouter():
+async def main():
+    url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://your-app.com",  # optional
-        "X-Title": "TestBot",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
-
     payload = {
-        "model": "deepseek-chat",  # or gpt-3.5, etc.
-        "messages": [{"role": "user", "content": "Say hello"}]
+        "model": "deepseek-chat",  # replace with your model name if different
+        "messages": [
+            {"role": "user", "content": "Say hello"}
+        ]
     }
 
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=15
-            )
+    async with httpx.AsyncClient(timeout=15) as client:
+        response = await client.post(url, headers=headers, json=payload)
+
+        # Check status
+        if response.status_code != 200:
+            print(f"❌ Error: HTTP {response.status_code} - {response.text}")
+            return
+
         data = response.json()
 
-        print("✅ OpenRouter response:", data["choices"][0]["message"]["content"])
-    except Exception as e:
-        print("❌ OpenRouter error:", e)
+        # Print entire response for debug
+        print("Full response:", data)
 
-# Run it
-asyncio.run(test_openrouter())
+        # Extract and print AI message
+        try:
+            ai_message = data["choices"][0]["message"]["content"]
+            print("AI says:", ai_message)
+        except (KeyError, IndexError):
+            print("❌ Response JSON missing expected 'choices' key or content.")
+
+if __name__ == "__main__":
+    asyncio.run(main())
