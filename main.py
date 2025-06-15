@@ -1,22 +1,48 @@
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from openai import OpenAI
 import json
 import os
+import httpx
 from keep_alive import keep_alive
 keep_alive()
+
+import httpx
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") or "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"
+
+async def get_openrouter_reply(prompt):
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "HTTP-Referer": "https://your-app.com",  # customize this if needed
+        "X-Title": "RoleplayAI",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "model": "deepseek-chat",  # or gpt-3.5 or another supported model
+        "messages": [{"role": "user", "content": prompt}]
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
+        data = response.json()
+        return data["choices"][0]["message"]["content"].strip()
+
+    except Exception as e:
+        print("❌ OpenRouter API error:", e)
+        return None
+
 
 story_mode_state = {}  # Tracks if user is writing a custom story
 character_creation_state = {}
 user_setup_state = {}
 nsfw_state = {}
 
-
-# Setup OpenRouter Client
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key="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"
-)
 
 # Load or initialize memory and user data
 USER_DATA_FILE = "user_data.json"
@@ -125,7 +151,11 @@ async def handle_story_choice(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("🪄 Generating your story... (Please be patient)")
 
         profile = user_data.get(user_id)
-        characters = profile.get("characters", [])
+if not profile:
+    await update.message.reply_text("❗ Please create your character first using /start.")
+    return
+
+characters = profile.get("characters", [])
         user_name = profile.get("name", "You")
         user_gender = profile.get("gender", "unknown")
         nsfw = profile.get("nsfw", False)
@@ -148,15 +178,7 @@ Characters:{char_list}
 Now begin the chat directly."""
 
         try:
-            completion = client.chat.completions.create(
-                model="deepseek/deepseek-chat-v3-0324:free",
-                messages=[{"role": "user", "content": prompt}],
-                extra_headers={
-                    "HTTP-Referer": "https://your-app.com",
-                    "X-Title": "RoleplayAI"
-                }
-            )
-            reply = completion.choices[0].message.content.strip()
+            reply = await get_openrouter_reply(prompt)
             user_data[user_id]["generated_story"] = reply  # Save full story
             memory.setdefault(user_id, []).append(reply)
 
@@ -224,23 +246,22 @@ User's custom story:
 
 Start the chat now. Use simple, human language."""
 
-    try:
-        completion = client.chat.completions.create(
-            model="deepseek/deepseek-chat-v3-0324:free",
-            messages=[{"role": "user", "content": prompt}],
-            extra_headers={
-                "HTTP-Referer": "https://your-app.com",
-                "X-Title": "RoleplayAI"
-            }
-        )
-        reply = completion.choices[0].message.content.strip()
+        try:
+        reply = await get_openrouter_reply(prompt)
+        if not reply:
+            raise Exception("Empty reply from OpenRouter")
 
+        user_data[user_id]["generated_story"] = reply
         memory.setdefault(user_id, []).append(reply)
+        save_user_data()
         save_memory()
+
         await update.message.reply_text(reply)
+
     except Exception as e:
-        print("❌ First story reply error:", e)
+        print("❌ Manual story error:", e)
         await update.message.reply_text("⚠️ Failed to start story.")
+
 
 
 # Chat message handler
@@ -305,26 +326,22 @@ Recent memory:"""
     prompt += f"\n\nUser: \"{user_msg}\"\nReply from the character in the proper format."
 
     try:
-        completion = client.chat.completions.create(
-            model="deepseek/deepseek-chat-v3-0324:free",
-            messages=[{"role": "user", "content": prompt}],
-            extra_headers={
-                "HTTP-Referer": "https://your-app.com",
-                "X-Title": "RoleplayAI"
-            }
-        )
-        reply = completion.choices[0].message.content.strip()
+    reply = await get_openrouter_reply(prompt)
+    if not reply:
+        raise Exception("OpenRouter returned empty reply")
 
-        memory[user_id].append(f'User: {user_msg}')
-        memory[user_id].append(reply)
-        if len(memory[user_id]) > 20:
-            memory[user_id] = memory[user_id][-10:]
+    memory[user_id].append(f'User: {user_msg}')
+    memory[user_id].append(reply)
+    if len(memory[user_id]) > 20:
+        memory[user_id] = memory[user_id][-10:]
 
-        save_memory()
-        await update.message.reply_text(reply)
-    except Exception as e:
-        print("❌ AI error:", e)
-        await update.message.reply_text("⚠️ Failed to generate a reply. Please try again later.")
+    save_memory()
+    await update.message.reply_text(reply)
+
+except Exception as e:
+    print("❌ AI error:", e)
+    await update.message.reply_text("⚠️ Failed to generate a reply. Please try again later.")
+
 
 async def handle_user_setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
